@@ -1,6 +1,6 @@
 # Director Mode Fusion (导演模式最终融合版)
 
-[![Version](https://img.shields.io/badge/version-1.0.22-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.0.23-brightgreen.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-green.svg)](scripts/validate_storyboard.py)
 [![Antigravity Skill](https://img.shields.io/badge/Antigravity-Skill-orange.svg)](SKILL.md)

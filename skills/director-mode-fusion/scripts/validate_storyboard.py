@@ -7,7 +7,7 @@ import re
 import sys
 
 NUMBER = r"[0-9]+\.[0-9]"
-PARAGRAPH = re.compile(rf"段落([0-9]+)｜总时长：({NUMBER})s")
+PARAGRAPH = re.compile(rf"段落([0-9]+)(?:\s*\[(Burst|Lingering|Outro)\])?｜总时长：({NUMBER})s")
 SHOT = re.compile(rf"镜([0-9]+)｜({NUMBER})s｜([^/\n]+/[^/\n]+/[^/\n]+)")
 VOICE_TOKEN = re.compile(r"【(V[0-9]{3,})｜([^】\n]+)】")
 VOICE_CARD = re.compile(r"^\s*(?:[-*]\s*)?(V[0-9]{3,})｜([^｜\n]+)｜([^\n]+?)\s*$", re.MULTILINE)
@@ -32,24 +32,27 @@ STANCE_LANDMARK = re.compile(
 STANCE_REMAIN = re.compile(r"(?:仍在|还在|留在|停在|守在)[^，。；]{1,16}")
 COMPASS = re.compile(r"[东南西北](?:侧|边|面|方)")
 PERSON_PRONOUN = re.compile(r"(?<![它其])[她他](?!的)|两人(?!的)|三人(?!的)|众人|二人(?!的)")
+KNOWN_NAMES = set()
 SCREEN_CONTENT = re.compile(r"屏幕|手机屏|手机上|聊天界面|照片|影像|回放|记录|名单|报告单")
 
 EXPRESSION_STATE = re.compile(
-    r"眉心|眉头|眉梢|眉峰|眉毛|眉眼|眼眶|眼睑|眼帘|眼皮|睫毛|瞳孔|眼睛|眼角|眼尾|脸颊|面颊|额头"
-    r"|嘴角|唇角|唇线|嘴唇|下唇|双唇|下颌|下巴|喉结|喉头|喉间|鼻息|鼻翼|鼻尖|鼻梁|脸色|神情|表情|面色"
-    r"|牙关|腮|神色|脖颈|颈侧|呼吸|吸气|屏息|肩线|肩背|肩膀|脊背|胸口|手心|手背|指节|指尖")
+    r"眉心|眉头|眉梢|眉峰|眉毛|眉眼|眼眶|眼睑|眼帘|眼皮|睫毛|瞳孔|眼睛|眼角|眼尾|眼眸|眼神|眼底|眼光|脸颊|面颊|额头"
+    r"|嘴角|唇角|唇线|嘴唇|下唇|双唇|唇瓣|下颌|下巴|喉结|喉头|喉间|鼻息|鼻翼|鼻尖|鼻梁|脸色|神情|表情|面色"
+    r"|牙关|腮|神色|脖颈|颈侧|后颈|呼吸|吸气|屏息|呼出|叹出|咽|吞咽|战栗|发颤|颤抖|发紧|微僵|僵住|咬牙"
+    r"|肩线|肩背|肩膀|脊背|胸口|胸膛|手心|手背|指节|指尖|指腹|掌心|手腕")
 ADDRESS_GAZE = re.compile(
-    r"视线|目光|看向|看着|望向|盯着|盯住|瞟|瞥|抬眼|垂眼|朝向|面向|背对|侧对|转头|侧头"
-    r"|回头|冲着|朝着|对上|迎上|眼睛[^，。；]{0,10}(?:画左|画右|看|望|移|挪|扫|躲|盯|对)")
+    r"视线|目光|看向|看着|望向|盯着|盯住|直视|凝视|注视|扫过|聚焦|落到|瞟|瞥|抬眼|垂眼|下敛|侧目|迎向|对视"
+    r"|朝向|面向|背对|侧对|转头|侧头|回头|冲着|朝着|对上|迎上|偏过头|转过脸|别开脸|移开视线|避开视线"
+    r"|眼睛[^，。；]{0,10}(?:画左|画右|看|望|移|挪|扫|躲|盯|对|闭|垂|敛)")
 OFFSCREEN_MARK = re.compile(r"画外|电话中|电话声|语音声|隔门|OS|旁白")
 ADDRESS_OBJECT = re.compile(
     r"(?:对|问|跟|冲|朝)([^，。；：、“”「」]{1,10}?)(?:说|问|答|喊|道|讲|回)")
 CONTACT_VERB = re.compile(
     r"递给|递到|塞给|塞到|推到|推向|递还|拉过|拉住|拽住|扯住|扶住|按住|抱住|揽住|抱紧"
     r"|搂住|拍在|拍向|扇了|扇在|扇向|扇耳光|吻上|吻住|抵住")
-CONTACT_PART = re.compile(r"手|手指|指尖|指节|掌|腕|臂|肩|腰|背|胸|脸|唇|颈|衣领|袖口")
+CONTACT_PART = re.compile(r"手|手指|指尖|指节|指腹|掌|掌心|腕|手腕|臂|手臂|肩|腰|背|胸|脸|唇|双唇|颈|后颈|衣领|袖口|衣料|前襟|衣角|下摆")
 CONTACT_FEEDBACK = re.compile(
-    r"贴|扣|握|压|拉|推|抵|陷|回弹|收紧|松开|滑|擦|碰|晃|垂|回缩|带住|托")
+    r"贴|扣|握|压|拉|推|抵|陷|回弹|收紧|松开|滑|擦|碰|晃|垂|回缩|带住|托|接|揉|抚|攥|揽|圈住|按|靠")
 CLOSE_MEDIUM_SCALE = {"特写", "近景", "中近景", "中景"}
 
 
@@ -98,6 +101,10 @@ def _read_scene_fields(lines, cursor, errors, label, initial, strict):
 
 def validate(text, start_shot=1, start_paragraph=1, check_scenes=False):
     errors = []
+    global KNOWN_NAMES
+    KNOWN_NAMES = set()
+    for staff_line in re.findall(r"(?m)^出场人物：(.*)$", text):
+        KNOWN_NAMES.update(_base_names("出场人物：" + staff_line))
     stripped = text.strip()
     if stripped.startswith('```') and stripped.endswith('```'):
         stripped = '\n'.join(stripped.splitlines()[1:-1]).strip()
@@ -115,7 +122,9 @@ def validate(text, start_shot=1, start_paragraph=1, check_scenes=False):
         if not header:
             errors.append(f"{label}：段落标题格式错误")
             continue
-        number, declared = int(header[1]), Decimal(header[2])
+        number = int(header[1])
+        p_profile = header[2]
+        declared = Decimal(header[3])
         label = f"段落{number}"
         if number != start_paragraph + index:
             errors.append(f"{label}：段落编号不连续")
@@ -181,14 +190,25 @@ def validate(text, start_shot=1, start_paragraph=1, check_scenes=False):
                 pic = next((part for part in body if part.startswith("画面：")), "")
                 pic_text = pic.split("：", 1)[1].strip() if "：" in pic else ""
                 if pic_text:
+                    on_screen = bool(SCREEN_CONTENT.search(pic_text))
+                    visible_text = re.sub(r"[“「][^”」]*[”」]", "", pic_text)
+                    if not on_screen:
+                        stray = [n for n in KNOWN_NAMES if n not in char_names
+                                 and re.search(rf"{re.escape(n)}(?!的)", visible_text)]
+                        if stray:
+                            errors.append(
+                                f"镜{shot_no}：画面出现未登记角色（{'、'.join(stray[:3])}），补进出场人物或改写画面")
                     if COMPASS.search(pic_text):
                         errors.append(f"镜{shot_no}：画面使用罗盘方位，请改用地标或机位基准")
                     on_screen = bool(SCREEN_CONTENT.search(pic_text))
                     is_person = any(
                         re.search(rf"{re.escape(name)}(?!的)", pic_text) for name in char_names
                     ) or bool(PERSON_PRONOUN.search(pic_text))
+                    scale = match[3].split("/")[0].strip()
+                    is_closeup_focus = scale in {"特写", "局部特写", "大特写", "微距"}
                     if is_person and not on_screen and not _has_stance(pic_text):
-                        errors.append(f"镜{shot_no}：画面未见可见角色的站位（地标＋相对方位）")
+                        if not (is_closeup_focus and prev_stance):
+                            errors.append(f"镜{shot_no}：画面未见可见角色的站位（地标＋相对方位）")
                     clauses = _stance_clauses(pic_text)
                     if prev_stance:
                         dup = sorted(set(clauses) & set(prev_stance))
@@ -222,8 +242,18 @@ def validate(text, start_shot=1, start_paragraph=1, check_scenes=False):
             errors.append(f"{label}：标题{declared}s，实际加总{total}s")
         if declared <= 0:
             errors.append(f"{label}：总时长必须大于0")
-        if not Decimal("10.0") <= total <= Decimal("15.0"):
-            errors.append(f"{label}：实际时长{total}s，不在10.0–15.0s")
+        if p_profile == "Burst":
+            if not Decimal("6.0") <= total <= Decimal("9.0"):
+                errors.append(f"{label}：[Burst]爆点单元实际时长{total}s，不在6.0–9.0s")
+        elif p_profile == "Lingering":
+            if not Decimal("15.0") <= total <= Decimal("20.0"):
+                errors.append(f"{label}：[Lingering]延宕单元实际时长{total}s，不在15.0–20.0s")
+        elif p_profile == "Outro":
+            if not Decimal("5.0") <= total <= Decimal("15.0"):
+                errors.append(f"{label}：[Outro]收尾单元实际时长{total}s，不在5.0–15.0s")
+        else:
+            if not Decimal("10.0") <= total <= Decimal("15.0"):
+                errors.append(f"{label}：实际时长{total}s，不在10.0–15.0s")
     return errors
 
 
@@ -494,9 +524,11 @@ def check_editing(text):
     shot_pictures = []
     shot_paragraph = {}
     for block in re.split(r"(?m)^\s*@\s*$", text.strip()):
-        header = re.search(r"段落([0-9]+)｜总时长：([0-9]+\.[0-9])s", block)
+        header = re.search(r"段落([0-9]+)(?:\s*\[(Burst|Lingering|Outro)\])?｜总时长：([0-9]+\.[0-9])s", block)
         if not header:
             continue
+        p_tag = header.group(2)
+        declared_dur = Decimal(header.group(3))
         paragraph_shots = []
         matches = list(re.finditer(r"(?m)^镜([0-9]+)｜([0-9]+\.[0-9])s｜([^\n]+)", block))
         for i, match in enumerate(matches):
@@ -519,7 +551,7 @@ def check_editing(text):
                     errors.append(f"镜{shot[0]}：含转场特效指令，镜间只能硬切：{clause.strip()}")
             if shot[1] > Decimal('4.0'):
                 reviews.append(f"镜{shot[0]}：{shot[1]}秒，复核切点及持续观看依据；多节点固定对白长于6秒原则上拆镜")
-        if Decimal('10.0') <= Decimal(header[2]) <= Decimal('15.0') and 1 <= len(paragraph_shots) <= 2:
+        if p_tag != "Burst" and Decimal('10.0') <= declared_dur <= Decimal('15.0') and 1 <= len(paragraph_shots) <= 2:
             reviews.append(f"段落{header[1]}：仅{len(paragraph_shots)}镜，复核是否遗漏有效切点")
         pushes = [shot for shot in paragraph_shots if has_push_pull(shot[3])]
         if paragraph_shots and len(pushes) * 2 > len(paragraph_shots):
