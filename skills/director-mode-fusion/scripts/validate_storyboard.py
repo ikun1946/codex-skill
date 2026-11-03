@@ -491,6 +491,8 @@ def check_editing(text):
     """
     errors, reviews = [], []
     shots = []
+    shot_pictures = []
+    shot_paragraph = {}
     for block in re.split(r"(?m)^\s*@\s*$", text.strip()):
         header = re.search(r"段落([0-9]+)｜总时长：([0-9]+\.[0-9])s", block)
         if not header:
@@ -506,6 +508,10 @@ def check_editing(text):
             shot = (int(match[1]), Decimal(match[2]), match[3].strip(), move)
             shots.append(shot)
             paragraph_shots.append(shot)
+            pic_line = next((line for line in body.splitlines() if line.startswith("画面：")), "")
+            pic_text = re.sub(r"[“「][^”」]*[”」]", "", pic_line[3:] if pic_line else "")
+            shot_pictures.append((int(match[1]), pic_text))
+            shot_paragraph[int(match[1])] = int(header[1])
             for clause in re.split(r"[，。；;\n]", visual):
                 if re.search(r"(?:禁止|不要|不得|不使用|不用|无|不加|避免)[^，。；;]*$", clause):
                     continue
@@ -518,6 +524,37 @@ def check_editing(text):
         pushes = [shot for shot in paragraph_shots if has_push_pull(shot[3])]
         if paragraph_shots and len(pushes) * 2 > len(paragraph_shots):
             reviews.append(f"段落{header[1]}：推拉/变焦超过半数，优先重排为固定机位之间硬切")
+    # Mechanical repetition is a review prompt, never a pass/fail rule:
+    # a repeated phrase may be legitimate (props, names), and only the
+    # author can decide whether the duplicate frame is justified.
+    def _clauses(picture):
+        return [c.strip() for c in re.split(r"[，；。]", picture) if 4 <= len(c.strip()) <= 16]
+
+    counts, first_seen = {}, {}
+    for shot_no, picture in shot_pictures:
+        for clause in _clauses(picture):
+            counts[clause] = counts.get(clause, 0) + 1
+            first_seen.setdefault(clause, shot_no)
+    for clause, times in sorted(counts.items(), key=lambda item: -item[1])[:15]:
+        if times >= 8:
+            reviews.append(
+                f"机械重复：“{clause}”全文出现{times}次（首见镜{first_seen[clause]}），按场景重写，不要只换同义词")
+    for clause, times in sorted(counts.items(), key=lambda item: -item[1]):
+        if "且" in clause and 6 <= len(clause) <= 20 and times >= 3:
+            reviews.append(
+                f"机械重复：“{clause}”这类双属性句式出现{times}次（首见镜{first_seen[clause]}），改为只写这一镜真实可见的那一项")
+
+    paragraph_seen = {}
+    for shot_no, picture in shot_pictures:
+        paragraph = shot_paragraph.get(shot_no, 0)
+        seen = paragraph_seen.setdefault(paragraph, {})
+        for clause in _clauses(picture):
+            if len(clause) >= 6 and clause in seen:
+                reviews.append(
+                    f"段落{paragraph}：镜{seen[clause]}与镜{shot_no}出现相同描写“{clause}”，需写这一镜的差别")
+            else:
+                seen.setdefault(clause, shot_no)
+
     for i, shot in enumerate(shots):
         if i + 1 < len(shots) and not re.search(r"(?:[，；;]\s*|\s)硬切\s*[。.]?$", shot[3]):
             errors.append(f"镜{shot[0]}：有后继镜头，运镜末尾须明确写硬切")

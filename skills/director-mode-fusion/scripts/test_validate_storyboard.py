@@ -239,5 +239,43 @@ class AddressChecks(unittest.TestCase):
         self.assertEqual(validate_address(fixed), [])
 
 
+class RepetitionChecks(unittest.TestCase):
+    def _shot(self, number, picture, last=False):
+        return (
+            f'镜{number}｜4.0s｜中近景/平视/三分构图\n'
+            f'画面：{picture}\n'
+            '台词/声音：无台词。\n'
+            '运镜：摄影机在柜台外侧·距地1.5米·平视·中近景·距林晚2米看林晚，固定机位；'
+            f'焦点稳定在手部；结束于中景构图，{"结束" if last else "硬切"}\n'
+        )
+
+    def _paragraph(self, pictures, number=1):
+        body = ''.join(self._shot(i, pic, i == len(pictures)) for i, pic in enumerate(pictures, 1))
+        return (
+            f'段落{number}｜总时长：{4.0 * len(pictures):.1f}s\n场景：店铺 夜 内\n'
+            '本段场景布局：柜台与入口相对，柜台前留有通道。\n'
+            '出场人物：林晚\n本段统一光影/质感：柜台顶灯照亮台面。\n' + body
+        )
+
+    def test_same_clause_in_one_paragraph_is_flagged(self):
+        text = self._paragraph(['林晚站在柜台前，眉心压着，视线钉在来人脸上。',
+                                '林晚仍站在柜台前，眉心压着，视线钉在来人脸上。'])
+        _, reviews = check_editing(text)
+        self.assertTrue(any('相同描写' in r for r in reviews), reviews)
+
+    def test_global_repetition_is_flagged(self):
+        text = '\n@\n'.join(
+            self._paragraph([f'林晚站在柜台前第{n}步处，眉心平着，手指搭在台沿。'], number=n)
+            for n in range(1, 10))
+        _, reviews = check_editing(text)
+        self.assertTrue(any('机械重复' in r and '眉心平着' in r for r in reviews), reviews)
+
+    def test_distinct_descriptions_are_not_flagged(self):
+        text = self._paragraph(['林晚站在柜台前，眉心压着，视线钉在来人脸上。',
+                                '林晚退到门口，肩膀转向入口，指节抵着信封边缘。'])
+        _, reviews = check_editing(text)
+        self.assertFalse(any('相同描写' in r for r in reviews), reviews)
+
+
 if __name__ == '__main__':
     unittest.main()
