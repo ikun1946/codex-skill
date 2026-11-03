@@ -1,6 +1,6 @@
 # Director Mode Fusion (导演模式最终融合版)
 
-[![Version](https://img.shields.io/badge/version-1.0.16-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.0.19-brightgreen.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-green.svg)](scripts/validate_storyboard.py)
 [![Antigravity Skill](https://img.shields.io/badge/Antigravity-Skill-orange.svg)](SKILL.md)
@@ -23,8 +23,8 @@
 - **字幕禁用、道具文字允许**：不添加字幕、水印、悬浮字卡等叠加文字；信件、圣旨等真实载体可以有简短剧情文字。长篇求财信可简化为“要钱”，但承担因果的金额、期限等须保留；同一道具文字与排布跨段一致，原对白不缩写。
 - **剧情系统界面文字允许**：剧情已有的系统控制面板、任务栏和属性页可以显示必要文字、数值与按钮，包括悬浮或主观整屏界面；跨段复用详细外观与固定布局，任务进度、积分等随剧情变化，不另添字幕或无依据新增系统。
 - **每个视频最多9张参考图片**：角色、需参考的群演、场景及其他图片按整段实际用图合计；同图复用不重计，多场景和多造型占用相应名额。优先调整有空间依据的景别与裁切，仍超额时重组相邻节拍或拆段，保留关键动作与人物连续性。
-- **画面只写可见人物**：未入画人物的姓名、站位、动作和“某某在画外”等说明只留内部连续性记录，不进入画面、运镜及光影字段；必要画外对白仅写在台词/声音栏。
-- **原小说对照与分期造型**：以本次剧本决定剧情和台词，原小说补充与之相容的衣着、妆发及状态依据。记录小说出处、适用场次、换装节点与素材缺口，使用“角色名-具体造型名”区分需要独立参考的外观。
+- **场景与人物连续性**：段首详细写时间、空间形态、出入口、固定地标、基础布局和光影；逐镜写所有实际可见角色的区域、地标、姿态、朝向、前后层次和遮挡。沉默或旁听角色可以入画，不因无台词而删除；同场跨视频双向检查无故消失和无故新增，参考图片总数仍按整段并集控制在9张内。
+- **原小说对照与分期造型**：以本次剧本决定剧情和台词，原小说补充与之相容的衣着、妆发及状态依据。先按版型、轮廓、颜色、花纹、材质和重要妆发合并相容外观；酒店浴袍、居家浴袍等用途不同但款式相近时共用“角色名-浴袍”资产，只有明确视觉差异或实质状态才拆分。记录小说出处、适用场次、实际用途、换装节点、旧名映射与素材缺口。
 - **角色外观与服装解耦设计（分镜与美术资产并行流水线）**：原文明确的颜色、款式、花纹和材质保存在造型记录，由对应参考图承接，不在每镜重复。分镜聚焦表演和衣物受力，并保留服饰承担的识别、遮挡、穿戴或动作限制等剧情信息。
 - **按当前信息选择单人或双人构图**：威胁、对白与反应可用单人正反打；近身接触保留清楚的攻防关系，不预设固定镜数或交替顺序。构图选择用于降低复杂度，不承诺消除生成形变。
 - **180° 轴线与屏幕视线锁定**：
@@ -69,7 +69,7 @@
 
 每段在“场景”后新增“本段场景布局”，只写本段需要的固定地标、关键陈设和通道关系；完整依据保留内部记录，逐镜落实实际可见取景。世界方向与画面左右分开，光源、门窗和家具状态跨镜继承。段内真实换场补新布局及“本场光影/质感”，不沿用上一场照明；不为说明环境强插全景，也不在布局字段写人物备注。
 
-新版交付使用 `python scripts/validate_storyboard.py your_storyboard.md --check-scenes --check-editing --check-voices`。普通检查兼容旧稿，空间、构图和参考图相容性仍需人工复核。
+新版交付使用 `python scripts/validate_storyboard.py your_storyboard.md --check-scenes --check-editing --check-voices`。`--check-scenes` 除场景字段外，还会核对逐镜站位：含人物的镜头必须写出地标＋相对方位，段首布局不得含人物姓名，画面不得用罗盘方位，相邻镜不得整块复制站位。普通检查兼容旧稿，空间、构图和参考图相容性仍需人工复核。
 
 ## 规则与案例分开读取
 
@@ -118,7 +118,7 @@ director-mode-fusion/
 
 ```powershell
 python tools/sync_skill.py director-mode-fusion --force
-python tools/release_skill.py director-mode-fusion 1.0.17 -m "更新说明"
+python tools/release_skill.py director-mode-fusion 1.0.18 -m "更新说明"
 ```
 
 版本标签使用 `director-mode-fusion-v<version>`，不会与其他 Skill 的版本号冲突。

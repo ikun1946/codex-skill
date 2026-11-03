@@ -17,6 +17,44 @@ SPEAKER_PREFIXES = ("画外", "电话中", "电话", "隔门", "OS", "VO")
 
 
 SCENE_FIELDS = ("本段场景布局：", "本段统一光影/质感：", "本场光影/质感：")
+
+STANCE_VERB = re.compile(
+    r"(?:坐|站|躺|靠|蹲|跪|伏|倚|停|挡|走|跑|退|挤|并排|位于|留在|守在|来到|回到|抱|背|扶|牵|趴)"
+    r"(?:在|于|到|向|着|回|进|起)[^，。；]{0,20}")
+STANCE_PREP = re.compile(
+    r"(?:在|于|从|到|向)[^，。；]{1,14}"
+    r"(?:上|下|里|外|内|中|处|侧|旁|边|间|口|前|后|端)")
+STANCE_LANDMARK = re.compile(
+    r"门口|门外|门内|门槛|门框|门前|门边|正门|台阶|楼梯|栏杆|桌沿|桌尾|桌首|桌边|桌前|桌面"
+    r"|沙发|茶几|床边|床沿|床头|床尾|窗边|窗前|吧台|柜台|台面|玄关|走廊|通道|池边|池沿"
+    r"|镜前|车位|甲板|码头|烤架|展台|工位|书架|墙边|角落|院中|树下|驾驶位|副驾驶|后座"
+    r"|地毯|地板|地面|地上|台前|台后|座椅|椅子|椅背|凳子|炕沿|炕上|回廊|廊下|车里|车内|栈桥|站台|大厅|门口")
+STANCE_REMAIN = re.compile(r"(?:仍在|还在|留在|停在|守在)[^，。；]{1,16}")
+COMPASS = re.compile(r"[东南西北](?:侧|边|面|方)")
+PERSON_PRONOUN = re.compile(r"(?<![它其])[她他](?!的)|两人(?!的)|三人(?!的)|众人|二人(?!的)")
+SCREEN_CONTENT = re.compile(r"屏幕|手机屏|手机上|聊天界面|照片|影像|回放|记录|名单|报告单")
+
+
+def _base_names(line):
+    """Split 出场人物 into base character names, dropping markers and costume suffixes."""
+    value = line.split("：", 1)[1] if "：" in line else ""
+    names = []
+    for item in re.split(r"[；;]", value):
+        item = re.sub(r"[（(][^）)]*[）)]", "", item).strip()
+        item = item.split("-")[0].strip()
+        if not item or item in ("无", "群演"):
+            continue
+        names.append(item)
+    return names
+
+
+def _has_stance(pic):
+    return bool(STANCE_VERB.search(pic) or STANCE_PREP.search(pic) or STANCE_REMAIN.search(pic)
+                or STANCE_LANDMARK.search(pic))
+
+
+def _stance_clauses(pic):
+    return [c for c in re.split(r"[，；]", pic) if len(c) >= 6 and _has_stance(c)]
 EXTERNAL_SCENE_REFERENCE = re.compile(r"同前|(?<!相)同上(?![方悬])(?:段|场|镜)?|沿用(?:上|前)(?:一)?(?:段|场|镜)|参见(?:上|前)(?:一)?(?:段|场|镜)")
 
 
@@ -66,6 +104,18 @@ def validate(text, start_shot=1, start_paragraph=1, check_scenes=False):
         if not lines[1].startswith("场景：") or not lines[1][len("场景："):].strip():
             errors.append(f"{label}：缺少或错置场景：")
         cursor = _read_scene_fields(lines, 2, errors, label, True, check_scenes)
+        char_names = []
+        if check_scenes:
+            staff = [l for l in lines if l.startswith("出场人物：")]
+            if staff:
+                char_names = _base_names(staff[0])
+            if char_names:
+                for layout_line in [l for l in lines if l.startswith("本段场景布局：")]:
+                    hit = [n for n in char_names if n in layout_line]
+                    if hit:
+                        errors.append(
+                            f"{label}：本段场景布局含人物姓名（{'、'.join(hit)}），应只写环境")
+        prev_stance = []
         total = Decimal("0")
         count = 0
         pending_scene = True
@@ -109,6 +159,25 @@ def validate(text, start_shot=1, start_paragraph=1, check_scenes=False):
             for part in body:
                 if "：" not in part or not part.split("：", 1)[1].strip():
                     errors.append(f"镜{shot_no}：空字段")
+            if check_scenes and char_names:
+                pic = next((part for part in body if part.startswith("画面：")), "")
+                pic_text = pic.split("：", 1)[1].strip() if "：" in pic else ""
+                if pic_text:
+                    if COMPASS.search(pic_text):
+                        errors.append(f"镜{shot_no}：画面使用罗盘方位，请改用地标或机位基准")
+                    on_screen = bool(SCREEN_CONTENT.search(pic_text))
+                    is_person = any(
+                        re.search(rf"{re.escape(name)}(?!的)", pic_text) for name in char_names
+                    ) or bool(PERSON_PRONOUN.search(pic_text))
+                    if is_person and not on_screen and not _has_stance(pic_text):
+                        errors.append(f"镜{shot_no}：画面未见可见角色的站位（地标＋相对方位）")
+                    clauses = _stance_clauses(pic_text)
+                    if prev_stance:
+                        dup = sorted(set(clauses) & set(prev_stance))
+                        if dup:
+                            errors.append(
+                                f"镜{shot_no}：站位整块重复（{dup[0][:24]}），应改为写变化")
+                    prev_stance = clauses
             moves = [part for part in body if part.startswith("运镜：")]
             if len(moves) == 1:
                 move_text = moves[0]

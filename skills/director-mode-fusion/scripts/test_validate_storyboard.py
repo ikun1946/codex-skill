@@ -9,13 +9,38 @@ from validate_storyboard import validate, validate_voices, check_editing, valida
 
 
 def shot(number, duration='4.0', last=False):
+    stances = (
+        '林晚站在柜台前，右手放下信封，视线投向画右。',
+        '林晚仍在柜台外侧半步处，身体侧向画左，指尖搭在台沿。',
+        '林晚退到柜台与门口的通道中段，肩膀转向入口。',
+    )
+    picture = stances[(number - 1) % len(stances)]
     return (
         f'镜{number}｜{duration}s｜中景/平视/三分构图\n'
-        '画面：林晚站在柜台前，右手放下信封，视线投向画右。\n'
+        f'画面：{picture}\n'
         '台词/声音：无台词；闭口，纸张落台轻响。\n'
         '运镜：摄影机在柜台外侧·距地1.5米·平视·中景·距林晚2米看林晚，固定机位；'
         f'焦点稳定在信封与手部；结束于信封落台的中景构图，{"结束" if last else "硬切"}\n'
     )
+
+
+def blocking_paragraph(pics, layout='本段场景布局：柜台与入口相对，柜台前留有通道。\n', names='林晚'):
+    """Paragraph built from explicit 画面 texts, for blocking-rule tests."""
+    header = (
+        f'段落1｜总时长：{4.0 * len(pics):.1f}s\n场景：店铺 夜 内\n'
+        f'{layout}出场人物：{names}\n本段统一光影/质感：柜台顶灯照亮台面，入口较暗。\n'
+    )
+    body = ''
+    for index, picture in enumerate(pics, 1):
+        tail = '结束' if index == len(pics) else '硬切'
+        body += (
+            f'镜{index}｜4.0s｜中景/平视/三分构图\n'
+            f'画面：{picture}\n'
+            '台词/声音：无台词；闭口。\n'
+            '运镜：摄影机在柜台外侧·距地1.5米·平视·中景·距林晚2米看林晚，固定机位；'
+            f'焦点稳定在手部；结束于中景构图，{tail}\n'
+        )
+    return header + body
 
 
 def paragraph(new=True, switch=False, number=1, first=1):
@@ -122,6 +147,36 @@ class SceneFormatTests(unittest.TestCase):
     def test_editing_errors_still_detected_with_new_metadata(self):
         self.assertEqual(check_editing(paragraph(switch=True))[0], [])
         self.assertTrue(check_editing(paragraph().replace('，硬切', '，叠化', 1))[0])
+
+    def test_blocking_requires_stance_for_person_shot(self):
+        text = blocking_paragraph(['她抬手按住他的肩。',
+                                   '林晚站在柜台前，右手放下信封。',
+                                   '林晚退到通道中段，肩膀转向入口。'])
+        errors = validate(text, check_scenes=True)
+        self.assertEqual(len([e for e in errors if '站位' in e]), 1, errors)
+        self.assertEqual(validate(text), [])
+
+    def test_blocking_rejects_compass_direction(self):
+        text = blocking_paragraph(['林晚站在门东侧的柜台前，右手放下信封。',
+                                   '林晚仍在柜台外侧半步处，指尖搭在台沿。',
+                                   '林晚退到通道中段，肩膀转向入口。'])
+        errors = validate(text, check_scenes=True)
+        self.assertEqual(len([e for e in errors if '罗盘' in e]), 1, errors)
+
+    def test_blocking_rejects_layout_with_character_name(self):
+        text = blocking_paragraph(['林晚站在柜台前，右手放下信封。',
+                                   '林晚仍在柜台外侧半步处，指尖搭在台沿。',
+                                   '林晚退到通道中段，肩膀转向入口。'],
+                                  layout='本段场景布局：柜台与入口相对，林晚惯常的位置前留有通道。\n')
+        errors = validate(text, check_scenes=True)
+        self.assertEqual(len([e for e in errors if '布局含人物姓名' in e]), 1, errors)
+
+    def test_blocking_rejects_duplicated_stance(self):
+        text = blocking_paragraph(['林晚站在柜台前，右手放下信封。',
+                                   '林晚站在柜台前，指节停在信封边缘。',
+                                   '林晚退到通道中段，肩膀转向入口。'])
+        errors = validate(text, check_scenes=True)
+        self.assertEqual(len([e for e in errors if '整块重复' in e]), 1, errors)
 
     def test_image_budget_still_enforced(self):
         card = '制作控制卡\n参考图预算：10张\n场景参考：2张｜店内、门前\n角色参考：8张\n'
