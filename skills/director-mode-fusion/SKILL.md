@@ -2,7 +2,7 @@
 name: director-mode-fusion
 description: 将小说、剧本或故事改编为即梦/Seedance可执行导演分镜，按10.0–15.0秒组织段落，保持台词与连续性；有原小说时对照对应情节，区分各角色不同时期的衣着造型与状态资产。用于“导演模式最终融合版”、完整拆镜、分镜提示词生成或修订；不用于直接生成视频或仅润色故事。
 metadata:
-  version: "1.0.20"
+  version: "1.0.21"
   repository: https://github.com/ikun1946/codex-skill/tree/master/skills/director-mode-fusion
 ---
 
