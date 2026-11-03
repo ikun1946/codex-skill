@@ -1,6 +1,6 @@
 # Director Mode Fusion (导演模式最终融合版)
 
-[![Version](https://img.shields.io/badge/version-1.0.19-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.0.20-brightgreen.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-green.svg)](scripts/validate_storyboard.py)
 [![Antigravity Skill](https://img.shields.io/badge/Antigravity-Skill-orange.svg)](SKILL.md)
@@ -69,7 +69,7 @@
 
 每段在“场景”后新增“本段场景布局”，只写本段需要的固定地标、关键陈设和通道关系；完整依据保留内部记录，逐镜落实实际可见取景。世界方向与画面左右分开，光源、门窗和家具状态跨镜继承。段内真实换场补新布局及“本场光影/质感”，不沿用上一场照明；不为说明环境强插全景，也不在布局字段写人物备注。
 
-新版交付使用 `python scripts/validate_storyboard.py your_storyboard.md --check-scenes --check-editing --check-voices`。`--check-scenes` 除场景字段外，还会核对逐镜站位：含人物的镜头必须写出地标＋相对方位，段首布局不得含人物姓名，画面不得用罗盘方位，相邻镜不得整块复制站位。普通检查兼容旧稿，空间、构图和参考图相容性仍需人工复核。
+新版交付使用 `python scripts/validate_storyboard.py your_storyboard.md --check-scenes --check-editing --check-voices`。`--check-scenes` 除场景字段外，还会核对逐镜站位：含人物的镜头必须写出地标＋相对方位，段首布局不得含人物姓名，画面不得用罗盘方位，相邻镜不得整块复制站位。普通检查兼容旧稿，空间、构图和参考图相容性仍需人工复核。`--check-voices` 除音色锚点与跨镜绑定外，还会核对对白与动作指向：画内说话者须写出可见神情或身体状态、以及投向对象的视线或朝向；递、拉、扶、抱这类接触动作须写出身体部位与受力反馈；画外发声只查听者反应。
 
 ## 规则与案例分开读取
 

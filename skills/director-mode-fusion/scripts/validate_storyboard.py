@@ -34,6 +34,24 @@ COMPASS = re.compile(r"[东南西北](?:侧|边|面|方)")
 PERSON_PRONOUN = re.compile(r"(?<![它其])[她他](?!的)|两人(?!的)|三人(?!的)|众人|二人(?!的)")
 SCREEN_CONTENT = re.compile(r"屏幕|手机屏|手机上|聊天界面|照片|影像|回放|记录|名单|报告单")
 
+EXPRESSION_STATE = re.compile(
+    r"眉心|眉头|眉梢|眉峰|眉毛|眼眶|眼皮|睫毛|瞳孔|嘴角|唇线|嘴唇|下唇|双唇|下颌|下巴"
+    r"|喉结|喉头|喉间|鼻息|鼻翼|鼻尖|脸色|神情|表情|面色|牙关|腮|脖颈|颈侧|呼吸|吸气|屏息"
+    r"|肩线|肩背|肩膀|脊背|胸口|指节|指尖")
+ADDRESS_GAZE = re.compile(
+    r"视线|目光|看向|看着|望向|盯着|盯住|瞟|瞥|抬眼|垂眼|朝向|面向|背对|侧对|转头|侧头"
+    r"|回头|冲着|朝着|对上|迎上")
+OFFSCREEN_MARK = re.compile(r"画外|电话中|电话声|语音声|隔门|OS|旁白")
+ADDRESS_OBJECT = re.compile(
+    r"(?:对|问|跟|冲|朝)([^，。；：、“”「」]{1,10}?)(?:说|问|答|喊|道|讲|回)")
+CONTACT_VERB = re.compile(
+    r"递给|递到|塞给|塞到|推到|推向|递还|拉过|拉住|拽住|扯住|扶住|按住|抱住|揽住|抱紧"
+    r"|搂住|拍在|拍向|扇|吻上|吻住|抵住")
+CONTACT_PART = re.compile(r"手|手指|指尖|指节|掌|腕|臂|肩|腰|背|胸|脸|唇|颈|衣领|袖口")
+CONTACT_FEEDBACK = re.compile(
+    r"贴|扣|握|压|拉|推|抵|陷|回弹|收紧|松开|滑|擦|碰|晃|垂|回缩|带住|托")
+CLOSE_MEDIUM_SCALE = {"特写", "近景", "中近景", "中景"}
+
 
 def _base_names(line):
     """Split 出场人物 into base character names, dropping markers and costume suffixes."""
@@ -225,6 +243,52 @@ def _voice_speaker(line, position):
     if not chunk:
         return None
     return chunk[-20:]
+
+
+def validate_address(text):
+    """Check on-screen speakers and actors carry visible state, gaze and contact.
+
+    Keyword-level only: cannot judge whether the expression suits the beat or
+    whether the gaze target is correct.
+    """
+    errors = []
+    for block in re.split(r"(?m)^\s*@\s*$", text.strip()):
+        if not re.search(r"段落[0-9]+｜总时长：", block):
+            continue
+        matches = list(re.finditer(r"(?m)^镜([0-9]+)｜([0-9]+\.[0-9])s｜([^\n]+)", block))
+        for index, match in enumerate(matches):
+            shot_no = int(match[1])
+            scale = match[3].split("/")[0].strip()
+            body = block[match.end():matches[index + 1].start() if index + 1 < len(matches) else len(block)]
+            lines = body.splitlines()
+            pic = next((line[len("画面："):] for line in lines if line.startswith("画面：")), "")
+            say_line = next((line for line in lines if line.startswith("台词/声音：")), "")
+            if not pic:
+                continue
+            say_text = say_line[len("台词/声音："):] if say_line else ""
+            if say_text and DIALOGUE_QUOTE.search(say_text):
+                visible = []
+                for anchor in VOICE_TOKEN.finditer(say_line):
+                    speaker = _voice_speaker(say_line, anchor.start())
+                    if not speaker:
+                        continue
+                    prefix = say_line[len("台词/声音："):anchor.start()]
+                    clause = re.split(r"[，。；]", prefix)[-1]
+                    if OFFSCREEN_MARK.search(clause):
+                        continue
+                    if speaker in pic:
+                        visible.append(speaker)
+                if visible:
+                    who = "、".join(dict.fromkeys(visible))
+                    if scale in CLOSE_MEDIUM_SCALE and not EXPRESSION_STATE.search(pic):
+                        errors.append(f"镜{shot_no}：说话者{who}在画内，画面缺少可见神情或身体状态")
+                    if not ADDRESS_GAZE.search(pic):
+                        errors.append(f"镜{shot_no}：说话者{who}在画内，画面缺少投向对话对象的视线或朝向")
+            if CONTACT_VERB.search(pic) and not (
+                CONTACT_PART.search(pic) and CONTACT_FEEDBACK.search(pic)
+            ):
+                errors.append(f"镜{shot_no}：角色对角色做动作，画面缺少身体部位或接触/受力反馈")
+    return errors
 
 
 def validate_voices(text):
@@ -475,7 +539,7 @@ def main():
     parser.add_argument("--start-shot", type=int, default=1)
     parser.add_argument("--start-paragraph", type=int, default=1)
     parser.add_argument("--check-controls", action="store_true", help="检查可选制作控制卡")
-    parser.add_argument("--check-voices", action="store_true", help="检查音色锚点与跨镜绑定")
+    parser.add_argument("--check-voices", action="store_true", help="检查音色锚点、跨镜绑定及对白/动作指向（画内说话者的神情与视线、动作的接触与反馈）")
     parser.add_argument("--check-editing", action="store_true", help="检查硬切与转场特效，列出长镜/低镜数/推拉密集待复核项")
     parser.add_argument("--check-scenes", action="store_true", help="严格检查每场布局、段内换场光影及环境字段外部依赖；不判断空间语义")
     parser.add_argument("--allow-frame-anchors", action="store_true", help="允许控制卡出现首帧锚定/首帧锁定")
@@ -492,6 +556,7 @@ def main():
         errors.extend(validate_controls(content, allow_frame_anchors=args.allow_frame_anchors))
     if args.check_voices:
         errors.extend(validate_voices(content))
+        errors.extend(validate_address(content))
     if args.check_editing:
         editing_errors, reviews = check_editing(content)
         errors.extend(editing_errors)

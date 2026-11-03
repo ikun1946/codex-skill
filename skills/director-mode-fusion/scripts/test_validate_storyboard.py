@@ -5,7 +5,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from validate_storyboard import validate, validate_voices, check_editing, validate_controls
+from validate_storyboard import (
+    validate, validate_voices, validate_address, check_editing, validate_controls
+)
 
 
 def shot(number, duration='4.0', last=False):
@@ -192,6 +194,49 @@ class SceneFormatTests(unittest.TestCase):
                 result = subprocess.run([sys.executable, str(Path(__file__).with_name('validate_storyboard.py')), str(path)] + flags,
                                         capture_output=True)
                 self.assertEqual(result.returncode, expected, result.stdout.decode('utf-8', errors='replace'))
+
+
+class AddressChecks(unittest.TestCase):
+    def _text(self, picture, say, scale='中近景'):
+        return (
+            '段落1｜总时长：12.0s\n场景：餐厅 夜 内\n'
+            '本段场景布局：长桌居中，四椅分列。\n'
+            '出场人物：林晚；周砚\n'
+            '本段统一光影/质感：吊灯暖黄。\n'
+            f'镜1｜12.0s｜{scale}/平视/三分构图\n'
+            f'画面：{picture}\n'
+            f'台词/声音：{say}\n'
+            '运镜：摄影机在林晚右前方·距地1.4米·平视·中近景·距林晚1.2米看林晚，固定机位；'
+            '焦点稳定在她的眼睛；结束于胸口以上，结束\n'
+        )
+
+    VOICE = '林晚【V001｜成年女声·中音·清亮·语速适中】对周砚说：“先坐。”'
+
+    def test_missing_expression_is_rejected(self):
+        text = self._text('林晚坐在桌边，双手放在膝上，视线钉在周砚脸上。', self.VOICE)
+        errors = validate_address(text)
+        self.assertEqual(len([e for e in errors if '缺少可见神情' in e]), 1, errors)
+
+    def test_missing_gaze_is_rejected(self):
+        text = self._text('林晚坐在桌边，眉心压低，双手放在膝上。', self.VOICE)
+        errors = validate_address(text)
+        self.assertEqual(len([e for e in errors if '缺少投向' in e]), 1, errors)
+
+    def test_complete_address_passes(self):
+        text = self._text('林晚坐在桌边，眉心压低，视线钉在周砚脸上。', self.VOICE)
+        self.assertEqual(validate_address(text), [])
+
+    def test_offscreen_speaker_not_required_on_screen(self):
+        text = self._text('周砚坐在桌边，眉心压低，视线投向画左。',
+                          '林晚（画外）【V001｜成年女声·中音·清亮·语速适中】对周砚说：“先坐。”')
+        self.assertEqual(validate_address(text), [])
+
+    def test_contact_action_requires_hand_and_feedback(self):
+        text = self._text('周砚把外套递给林晚。', '无台词。')
+        errors = validate_address(text)
+        self.assertEqual(len([e for e in errors if '动作' in e]), 1, errors)
+        fixed = self._text('周砚把外套递到林晚手边，掌心托着衣领，等她抬手才松开。', '无台词。')
+        self.assertEqual(validate_address(fixed), [])
 
 
 if __name__ == '__main__':
